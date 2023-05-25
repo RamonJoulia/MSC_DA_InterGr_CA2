@@ -1,0 +1,102 @@
+from dash import Dash, dcc, html
+import dash_bootstrap_components as dbc
+from dash.dependencies import Input,Output
+import pandas as pd
+import plotly.express as px
+
+df = pd.read_csv('nda.csv')
+
+# Create the Dash app
+app = Dash(__name__)
+
+# Set up the app layout
+app.layout = dbc.Container([
+    dbc.Row([
+        dbc.Col([
+            html.H1('New Dwellings by Year',style={'fontSize':50, 'textAlign':'center'})
+        ], width=12)
+    ]),
+    dbc.Row([
+        dbc.Col([
+            html.Label("By property type:",style={'fontSize':30, 'textAlign':'center'}),
+            dcc.Dropdown(id='prop-type-dropdown', # dropdown name
+                options=[{'label':i,'value':i}
+                        for i in df['prop_type'].unique()], # dropdown content
+                value=[],  # default value
+                multi=True 
+                #style={'width':'40%'}
+                )
+        ], width=12)
+    ]),
+    dbc.Row([
+        dbc.Col([
+            dcc.Graph(id='nda-graph')
+        ], width=12)
+    ]),
+    dbc.Row([
+        dbc.Col([
+            html.H2("Property type proportion by year:",style={'fontSize':30, 'textAlign':'center'}),
+            html.Label('Select year:',style={'fontSize':20}),
+            dcc.Slider(id='year-slider',
+              min=df['year'].min(),
+              max=df['year'].max(),
+              step=1,
+              marks=None,
+              tooltip={'placement':'bottom','always_visible':True}
+              )
+        ], width=12)
+    ]),
+    dbc.Row([
+        dbc.Col([
+            dcc.Graph(id='year-graph')
+        ], width=12)
+    ])
+])
+
+# Input1: prop-type-dropdown
+# Output1: nda-graph
+
+# Set up the callback funtion (makes it interactive)
+@app.callback(
+    Output(component_id='nda-graph', component_property='figure'),
+    Input(component_id='prop-type-dropdown', component_property='value')
+)
+
+# Function
+def update_graph(selected_prop): # selected_prop from Input callback function
+   
+    # Empty dataframe to store each loop
+    selected = {'year':[],'prop_type':[],'avg_dwelling_size':[],'dwelling_type_perc':[],'new_dwelling':[]}
+    selected_df = pd.DataFrame(selected)
+
+    for i in selected_prop:
+        loop_df = df[df['prop_type']==i]
+        selected_df = pd.concat([selected_df, loop_df], ignore_index=True, sort=False)  
+        
+    line_fig = px.line(selected_df, x='year', y='new_dwelling', color='prop_type', color_discrete_map= {
+        'all_types':'purple','apartment':'blue','scheme_hs':'red','single_hs':'green'}
+        ).update_layout(xaxis_title='Year', yaxis_title='New Dwellings')
+    return line_fig # to Output callback function
+
+# Input2: year-slider
+# Output2: year-graph
+
+# Set up the second callback funtion (makes it interactive)
+@app.callback(
+    Output(component_id='year-graph', component_property='figure'),
+    Input(component_id='year-slider', component_property='value')
+)
+
+# Function
+def update_graph(year): # year-slider from Input callback function
+
+    df2 = df[(df['year'] == year)&(df['prop_type'] != 'all_types')]
+    
+    pie_fig = px.pie(df2, values="new_dwelling", names="prop_type", color='prop_type', color_discrete_map= {
+        'apartment':'blue','scheme_hs':'red','single_hs':'green'})
+    
+    return pie_fig # to Output callback function
+
+# Run local server
+if __name__ == '__main__':
+    app.run_server(debug=True)
